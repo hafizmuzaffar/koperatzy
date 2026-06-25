@@ -1,0 +1,68 @@
+import React, { useState, useContext } from 'react';
+import { AppContext } from '../../context/AppContext';
+import { Save } from 'lucide-react';
+
+export const PindahBuku = () => {
+  const { data, updateAnggotaSbu } = useContext(AppContext);
+  const [anggotaId, setAnggotaId] = useState('');
+  const [sbuBaru, setSbuBaru] = useState('MAB');
+  const [showSuccess, setShowSuccess] = useState(false);
+
+  const activeAnggota = data.anggota.filter(a => a.status === 'Aktif');
+
+  const selectedAnggota = activeAnggota.find(a => a.id === anggotaId);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!anggotaId) return;
+    if (selectedAnggota && selectedAnggota.sbu === sbuBaru) {
+      alert('SBU tujuan sama dengan SBU saat ini!');
+      return;
+    }
+    updateAnggotaSbu(anggotaId, sbuBaru);
+    setShowSuccess(true);
+    setAnggotaId(''); setSbuBaru('MAB');
+    setTimeout(() => setShowSuccess(false), 2000);
+  };
+
+  return (
+    <div className="page-content">
+      <h2 className="page-title mb-4">Pindah Buku (Pindah SBU)</h2>
+      {showSuccess && <div className="alert-success mb-4"><span>SBU Anggota berhasil diperbarui!</span></div>}
+      <div className="card">
+        <form onSubmit={handleSubmit} className="form-container">
+          <div className="grid-2">
+            <div className="form-group">
+              <label className="form-label">Pilih Anggota</label>
+              <select className="form-control" value={anggotaId} onChange={(e) => setAnggotaId(e.target.value)} required>
+                <option value="">-- Pilih Anggota --</option>
+                {activeAnggota.map(a => (
+                  <option key={a.id} value={a.id}>{a.nama} (SBU saat ini: {a.sbu})</option>
+                ))}
+              </select>
+            </div>
+            {selectedAnggota && (
+              <div className="form-group">
+                <label className="form-label">SBU Saat Ini</label>
+                <input type="text" className="form-control" value={selectedAnggota.sbu} disabled />
+              </div>
+            )}
+            <div className="form-group">
+              <label className="form-label">SBU Tujuan</label>
+              <select className="form-control" value={sbuBaru} onChange={(e) => setSbuBaru(e.target.value)} required>
+                <option value="MAB">MAB</option>
+                <option value="HLJ">HLJ</option>
+                <option value="NPA">NPA</option>
+              </select>
+            </div>
+          </div>
+          <div className="form-actions mt-4">
+            <button type="submit" className="btn btn-primary">
+              <Save size={18} /> Proses Pindah SBU
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};

@@ -84,35 +84,44 @@ app.get('/api/tabungan', async (req, res) => {
 });
 
 app.post('/api/tabungan', async (req, res) => {
-  const { anggotaId, noRekening, bank } = req.body;
-  
-  const result = await prisma.$transaction(async (tx) => {
-    // Ambil data simpanan pokok dan wajib dari Anggota
-    const ang = await tx.anggota.findUnique({ where: { id: anggotaId } });
-    const sp = ang.simpananPokok || 0;
-    const sw = ang.simpananWajib || 0;
+  try {
+    const { anggotaId, noRekening, bank } = req.body;
     
-    // Buat Tabungan (Rekening)
-    const tabungan = await tx.tabungan.create({
-      data: { anggotaId, noRekening, bank: bank || 'Mandiri', saldoPokok: sp, saldoWajib: sw, saldoSukarela: 0, status: 'Aktif' }
+    const result = await prisma.$transaction(async (tx) => {
+      const ang = await tx.anggota.findUnique({ where: { id: anggotaId } });
+      if (!ang) throw new Error('Anggota tidak ditemukan');
+      
+      const sp = parseFloat(ang.simpananPokok) || 0;
+      const sw = parseFloat(ang.simpananWajib) || 0;
+      
+      const tabungan = await tx.tabungan.create({
+        data: { anggotaId, noRekening: noRekening.trim(), bank: bank || 'Mandiri', saldoPokok: sp, saldoWajib: sw, saldoSukarela: 0, status: 'Aktif' }
+      });
+      
+      if (sp > 0) {
+        await tx.transaksiTabungan.create({
+           data: { tabunganId: tabungan.id, jenis: 'Setoran', jenisSimpanan: 'Simpanan Pokok', nominal: sp, keterangan: 'Setoran Awal (Registrasi)' }
+        });
+      }
+      if (sw > 0) {
+        await tx.transaksiTabungan.create({
+           data: { tabunganId: tabungan.id, jenis: 'Setoran', jenisSimpanan: 'Simpanan Wajib', nominal: sw, keterangan: 'Setoran Awal (Registrasi)' }
+        });
+      }
+      
+      return tabungan;
     });
-    
-    // Catat transaksi Setoran Awal
-    if (sp > 0) {
-      await tx.transaksiTabungan.create({
-         data: { tabunganId: tabungan.id, jenis: 'Setoran', jenisSimpanan: 'Simpanan Pokok', nominal: sp, keterangan: 'Setoran Awal (Registrasi)' }
-      });
+    res.json(result);
+  } catch (e) {
+    console.error('POST /api/tabungan error:', e.message);
+    if (e.message.includes('Unique constraint')) {
+      res.status(400).json({ error: 'Nomor rekening sudah digunakan. Gunakan nomor rekening yang lain.' });
+    } else {
+      res.status(500).json({ error: e.message });
     }
-    if (sw > 0) {
-      await tx.transaksiTabungan.create({
-         data: { tabunganId: tabungan.id, jenis: 'Setoran', jenisSimpanan: 'Simpanan Wajib', nominal: sw, keterangan: 'Setoran Awal (Registrasi)' }
-      });
-    }
-    
-    return tabungan;
-  });
-  res.json(result);
+  }
 });
+
 
 app.put('/api/tabungan/:id', async (req, res) => {
   const { id } = req.params;
@@ -224,17 +233,24 @@ app.get('/api/transaksi-pinjaman', async (req, res) => {
 
 app.post('/api/transaksi-pinjaman', async (req, res) => {
   try {
-    const { pinjamanId, jenis, nominal } = req.body;
+    const { pinjamanId, jenis, nominal, nominalDisetujui } = req.body;
     
+    const nominalFinal = nominalDisetujui ? parseFloat(nominalDisetujui) : parseFloat(nominal) || 0;
+
     const trx = await prisma.transaksiPinjaman.create({
-      data: { pinjamanId, jenis, nominal: parseFloat(nominal) || 0 }
+      data: { pinjamanId, jenis, nominal: nominalFinal }
     });
     
     // Jika transaksi adalah Pencairan, update status pinjaman menjadi Aktif
+    // Jika ada perubahan nominal (nominalDisetujui), update nominalPinjaman agar terintegrasi dengan perhitungan angsuran
     if (jenis === 'Pencairan') {
+      const updateData = { status: 'Aktif' };
+      if (nominalDisetujui) {
+        updateData.nominalPinjaman = nominalFinal;
+      }
       await prisma.pinjaman.update({
         where: { id: pinjamanId },
-        data: { status: 'Aktif' }
+        data: updateData
       });
     }
     

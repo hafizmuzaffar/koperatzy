@@ -85,8 +85,9 @@ export const AppProvider = ({ children }) => {
 
   // --- TABUNGAN ---
   const addTabungan = async (tabunganBaru) => {
-    await axios.post(`${API_URL}/tabungan`, tabunganBaru);
+    const res = await axios.post(`${API_URL}/tabungan`, tabunganBaru);
     fetchData();
+    return res.data;
   };
 
   const updateTabungan = async (id, updatedData) => {

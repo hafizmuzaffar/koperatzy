@@ -1,35 +1,84 @@
 import React, { useState, useContext } from 'react';
 import { AppContext } from '../../context/AppContext';
-import { Save, CheckCircle, Clock } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Save, CheckCircle, Clock, XCircle, Calculator } from 'lucide-react';
 
 const fmtIDR = (val) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(Number(val) || 0);
 const fmtDate = (val) => val ? new Date(val).toLocaleDateString('id-ID') : '-';
 
+const formatRibuan = (val) => {
+  if (!val) return '';
+  const num = val.toString().replace(/[^0-9]/g, '');
+  return num.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+};
+const parseRibuan = (val) => {
+  if (!val) return '';
+  return val.toString().replace(/[^0-9]/g, '');
+};
+
+// Pembulatan ke pecahan terdekat (≤499 → turun, ≥500 → naik) = Math.round() normal
+const roundCalc = (val) => Math.round(val);
+
+const INITIAL_FORM = { anggotaId: '', nominalPinjaman: '', tenorBulan: '12', tujuan: '' };
+
 export const PengajuanPinjaman = () => {
   const { data, addPengajuanPinjaman } = useContext(AppContext);
-  const navigate = useNavigate();
   
-  const [formData, setFormData] = useState({
-    anggotaId: '',
-    nominalPinjaman: '',
-    tenorBulan: '12',
-    tujuan: ''
-  });
-
+  const [formData, setFormData] = useState(INITIAL_FORM);
   const [showSuccess, setShowSuccess] = useState(false);
-  const activeAnggota = data.anggota.filter(a => a.status === 'Aktif');
+  const [simulation, setSimulation] = useState(null);
+
+  // Anggota aktif yang TIDAK memiliki pinjaman berjalan AND SUDAH memiliki rekening tabungan
+  const pinjamanAktifIds = new Set(
+    data.pinjaman
+      .filter(p => p.status === 'Pengajuan' || p.status === 'Disetujui' || p.status === 'Aktif')
+      .map(p => p.anggotaId)
+  );
+  const anggotaDenganRekening = new Set(data.tabungan.map(t => t.anggotaId));
+  const eligibleAnggota = data.anggota.filter(a => 
+    a.status === 'Aktif' && 
+    !pinjamanAktifIds.has(a.id) && 
+    anggotaDenganRekening.has(a.id)
+  );
+
+  const handleCalculate = () => {
+    const nominal = Number(formData.nominalPinjaman);
+    const tenor = Number(formData.tenorBulan);
+    if (!nominal || !tenor) return;
+    const angsuran = roundCalc(nominal / tenor);
+    const bunga = roundCalc(nominal * 0.015);
+    const swp = roundCalc(nominal * 0.005);
+    setSimulation({ angsuran, bunga, swp, total: angsuran + bunga + swp });
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!formData.anggotaId) return;
-
+    if (Number(formData.nominalPinjaman) < 900000) {
+      alert("Minimal nominal pengajuan pinjaman adalah Rp 900.000");
+      return;
+    }
+    
     addPengajuanPinjaman(formData);
+    setFormData(INITIAL_FORM);
+    setSimulation(null);
     setShowSuccess(true);
-    setTimeout(() => {
-      setShowSuccess(false);
-      navigate('/pinjaman/laporan/pengajuan');
-    }, 2000);
+    setTimeout(() => setShowSuccess(false), 3000);
+  };
+
+  const getStatusBadge = (status) => {
+    const map = {
+      'Pengajuan': { bg: '#FEF3C7', color: '#92400E', icon: <Clock size={12} />, label: 'Menunggu' },
+      'Disetujui': { bg: '#d1fae5', color: '#065f46', icon: <CheckCircle size={12} />, label: 'Disetujui' },
+      'Ditolak':   { bg: '#fee2e2', color: '#b91c1c', icon: <XCircle size={12} />, label: 'Ditolak' },
+      'Aktif':     { bg: '#dbeafe', color: '#1e40af', icon: <CheckCircle size={12} />, label: 'Aktif' },
+      'Lunas':     { bg: '#d1fae5', color: '#065f46', icon: <CheckCircle size={12} />, label: 'Lunas' },
+    };
+    const s = map[status] || { bg: '#f3f4f6', color: '#374151', icon: null, label: status };
+    return (
+      <span style={{ padding: '3px 10px', borderRadius: '999px', fontSize: '0.8rem', fontWeight: 600, background: s.bg, color: s.color, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+        {s.icon} {s.label}
+      </span>
+    );
   };
 
   return (
@@ -38,7 +87,8 @@ export const PengajuanPinjaman = () => {
       
       {showSuccess && (
         <div className="alert-success mb-4">
-          <span>Pengajuan pinjaman berhasil disimpan!</span>
+          <CheckCircle size={18} />
+          <span>Pengajuan pinjaman berhasil disimpan! Formulir telah dikosongkan.</span>
         </div>
       )}
 
@@ -54,20 +104,24 @@ export const PengajuanPinjaman = () => {
                 required
               >
                 <option value="">-- Pilih Anggota --</option>
-                {activeAnggota.map(a => (
+                {eligibleAnggota.map(a => (
                   <option key={a.id} value={a.id}>{a.nama} ({a.sbu})</option>
                 ))}
               </select>
+              {eligibleAnggota.length === 0 && (
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '6px' }}>
+                  Tidak ada anggota yang memenuhi syarat (harus sudah memiliki rekening tabungan & tidak ada pinjaman aktif).
+                </p>
+              )}
             </div>
             <div className="form-group">
               <label className="form-label">Nominal Pengajuan (Rp)</label>
               <input 
-                type="number" 
+                type="text" 
                 className="form-control" 
-                value={formData.nominalPinjaman}
-                onChange={(e) => setFormData({ ...formData, nominalPinjaman: e.target.value })}
+                value={formatRibuan(formData.nominalPinjaman)}
+                onChange={(e) => { setFormData({ ...formData, nominalPinjaman: parseRibuan(e.target.value) }); setSimulation(null); }}
                 required 
-                min="100000"
               />
             </div>
             <div className="form-group">
@@ -75,7 +129,7 @@ export const PengajuanPinjaman = () => {
               <select 
                 className="form-control" 
                 value={formData.tenorBulan}
-                onChange={(e) => setFormData({ ...formData, tenorBulan: e.target.value })}
+                onChange={(e) => { setFormData({ ...formData, tenorBulan: e.target.value }); setSimulation(null); }}
               >
                 <option value="6">6 Bulan</option>
                 <option value="12">12 Bulan</option>
@@ -94,6 +148,42 @@ export const PengajuanPinjaman = () => {
               />
             </div>
           </div>
+
+          {/* Tombol Calculate */}
+          <div style={{ marginTop: '12px', marginBottom: simulation ? '0' : '8px' }}>
+            <button
+              type="button"
+              className="btn"
+              onClick={handleCalculate}
+              disabled={!formData.nominalPinjaman || !formData.tenorBulan}
+              style={{ background: 'var(--bg-secondary)', color: 'var(--text)', border: '1.5px solid var(--border)', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+            >
+              <Calculator size={16} /> Hitung Simulasi
+            </button>
+          </div>
+
+          {/* Hasil Simulasi */}
+          {simulation && (
+            <div style={{ margin: '16px 0', padding: '16px', background: '#EFF6FF', borderRadius: '10px', border: '1px solid #BFDBFE' }}>
+              <div style={{ fontWeight: 700, color: '#1e40af', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Calculator size={16} /> Simulasi Pinjaman
+              </div>
+              <div className="grid-2" style={{ gap: '10px' }}>
+                {[
+                  { label: 'Angsuran (pokok/bln)', value: simulation.angsuran },
+                  { label: 'Bunga (1,5%)', value: simulation.bunga },
+                  { label: 'SWP (0,5%)', value: simulation.swp },
+                  { label: 'Total per Bulan', value: simulation.total, highlight: true },
+                ].map(item => (
+                  <div key={item.label} style={{ padding: '10px 14px', background: item.highlight ? '#1e40af' : 'white', borderRadius: '8px', border: '1px solid #BFDBFE' }}>
+                    <div style={{ fontSize: '0.8rem', color: item.highlight ? '#bfdbfe' : '#6b7280', marginBottom: '2px' }}>{item.label}</div>
+                    <div style={{ fontWeight: 700, fontSize: '1rem', color: item.highlight ? 'white' : '#1e40af' }}>{fmtIDR(item.value)}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="form-actions mt-4">
             <button type="submit" className="btn btn-primary">
               <Save size={18} /> Ajukan Pinjaman
@@ -114,32 +204,25 @@ export const PengajuanPinjaman = () => {
                 <th>No</th>
                 <th>Nama Anggota</th>
                 <th>Nominal</th>
+                <th>Tenor</th>
+                <th>Tujuan</th>
                 <th>Status</th>
                 <th>Tanggal Pengajuan</th>
               </tr>
             </thead>
             <tbody>
               {data.pinjaman.length === 0 ? (
-                <tr><td colSpan={5} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>Belum ada data pengajuan pinjaman.</td></tr>
+                <tr><td colSpan={7} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>Belum ada data pengajuan pinjaman.</td></tr>
               ) : data.pinjaman.map((p, i) => {
                 const ang = data.anggota.find(a => a.id === p.anggotaId);
-                const isPending = p.status === 'Pengajuan';
                 return (
                   <tr key={p.id}>
                     <td>{i + 1}</td>
                     <td><strong>{ang?.nama || '-'}</strong> <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>({ang?.sbu})</span></td>
                     <td style={{ fontWeight: 600 }}>{fmtIDR(p.nominalPinjaman)}</td>
-                    <td>
-                      {isPending ? (
-                        <span style={{ padding: '3px 10px', borderRadius: '999px', fontSize: '0.8rem', fontWeight: 600, background: '#FEF3C7', color: '#92400E', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                          <Clock size={12} /> Pending
-                        </span>
-                      ) : (
-                        <span style={{ padding: '3px 10px', borderRadius: '999px', fontSize: '0.8rem', fontWeight: 600, background: '#d1fae5', color: '#065f46', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                          <CheckCircle size={12} /> Disetujui
-                        </span>
-                      )}
-                    </td>
+                    <td>{p.tenorBulan} Bln</td>
+                    <td>{p.tujuan || '-'}</td>
+                    <td>{getStatusBadge(p.status)}</td>
                     <td>{fmtDate(p.tglPengajuan)}</td>
                   </tr>
                 );

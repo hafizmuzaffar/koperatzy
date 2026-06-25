@@ -59,7 +59,7 @@ export const Sidebar = ({ isMobileOpen, onClose }) => {
       </div>
       <div className="sidebar-nav">
         <MenuItem icon={LayoutDashboard} title="Dashboard" to="/dashboard" />
-        <MenuItem icon={Users} title="Anggota" to="/anggota" defaultOpen>
+        <MenuItem icon={Users} title="Anggota" to="/anggota">
           <NavLink to="/anggota/registrasi" className={({isActive}) => `submenu-item ${isActive ? 'active' : ''}`}>Registrasi Anggota</NavLink>
           <SubMenuGroup title="Transaksi Anggota">
             <NavLink to="/anggota/transaksi/keluar" className="submenu-item">Anggota Keluar</NavLink>

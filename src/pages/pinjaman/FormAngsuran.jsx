@@ -50,8 +50,15 @@ export const FormAngsuran = () => {
     }
   }
 
-  const handleBayar = () => {
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  const handleBayarClick = () => {
     if (!selectedPinjaman) return;
+    setConfirmOpen(true);
+  };
+
+  const handleConfirmYa = () => {
+    setConfirmOpen(false);
 
     addTransaksiPinjaman({ 
       pinjamanId, 
@@ -65,7 +72,7 @@ export const FormAngsuran = () => {
     // Jika ini adalah angsuran terakhir
     if (jumlahDibayarLama + 1 >= Number(selectedPinjaman.tenorBulan)) {
       updateStatusPinjaman(pinjamanId, 'Lunas');
-      setPinjamanId(''); // Reset selection if lunas
+      setPinjamanId('');
     }
 
     setShowSuccess(true);
@@ -161,10 +168,75 @@ export const FormAngsuran = () => {
             <button 
               className="btn btn-success" 
               style={{ background: '#22c55e', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '6px', fontWeight: 600, cursor: 'pointer' }}
-              onClick={handleBayar}
+              onClick={handleBayarClick}
             >
               Bayar Angsuran
             </button>
+          </div>
+        </div>
+      )}
+      {/* Confirmation Modal */}
+      {confirmOpen && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 9999,
+          background: 'rgba(0, 0, 0, 0.6)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          animation: 'fadeIn 0.2s ease'
+        }}>
+          <div style={{
+            background: '#ffffff',
+            borderRadius: '20px',
+            padding: '32px',
+            maxWidth: '400px',
+            width: '90%',
+            boxShadow: '0 24px 48px rgba(0,0,0,0.2)',
+            textAlign: 'center',
+            animation: 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
+          }}>
+            <div style={{ 
+              width: '64px', height: '64px', background: 'rgba(34, 197, 94, 0.1)', 
+              color: '#22c55e', borderRadius: '50%', display: 'flex', 
+              alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px',
+              fontSize: '2rem'
+            }}>
+              💸
+            </div>
+            <h3 style={{ margin: '0 0 12px', fontSize: '1.3rem', fontWeight: 700, color: '#111827' }}>
+              Konfirmasi Angsuran
+            </h3>
+            <p style={{ color: '#4b5563', margin: '0 0 24px', lineHeight: 1.6, fontSize: '0.95rem' }}>
+              Anda akan memproses pembayaran angsuran untuk anggota <strong style={{ color: '#111827' }}>{ang?.nama}</strong> senilai <strong style={{ color: '#16a34a', fontSize: '1.05rem' }}>{fmtIDR(angsuranPerBulan)}</strong>.
+            </p>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+              <button
+                onClick={() => setConfirmOpen(false)}
+                style={{
+                  flex: 1, padding: '12px 0', borderRadius: '10px', fontWeight: 600,
+                  border: '1px solid #d1d5db', background: '#ffffff',
+                  color: '#374151', cursor: 'pointer', fontSize: '0.95rem',
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseOver={(e) => e.target.style.background = '#f3f4f6'}
+                onMouseOut={(e) => e.target.style.background = '#ffffff'}
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleConfirmYa}
+                style={{
+                  flex: 1, padding: '12px 0', borderRadius: '10px', fontWeight: 600,
+                  border: 'none', background: '#16a34a',
+                  color: 'white', cursor: 'pointer', fontSize: '0.95rem',
+                  boxShadow: '0 4px 12px rgba(22, 163, 74, 0.3)',
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseOver={(e) => e.target.style.transform = 'translateY(-2px)'}
+                onMouseOut={(e) => e.target.style.transform = 'translateY(0)'}
+              >
+                Ya, Bayar
+              </button>
+            </div>
           </div>
         </div>
       )}

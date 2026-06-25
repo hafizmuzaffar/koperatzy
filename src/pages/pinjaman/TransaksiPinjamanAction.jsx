@@ -5,9 +5,20 @@ import { CheckCircle, Clock } from 'lucide-react';
 const fmtIDR = (val) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(Number(val) || 0);
 const fmtDate = (val) => val ? new Date(val).toLocaleDateString('id-ID') : '-';
 
+const formatRibuan = (val) => {
+  if (!val) return '';
+  const num = val.toString().replace(/[^0-9]/g, '');
+  return num.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+};
+const parseRibuan = (val) => {
+  if (!val) return '';
+  return val.toString().replace(/[^0-9]/g, '');
+};
+
 export const TransaksiPinjamanAction = ({ action }) => {
   const { data, updateStatusPinjaman, addTransaksiPinjaman } = useContext(AppContext);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [nominalDisetujuiState, setNominalDisetujuiState] = useState({});
 
   // Pencairan: Tampilkan Disetujui (Belum Cair) & Aktif (Sudah Cair)
   // Pelunasan: Tampilkan Lunas
@@ -18,9 +29,15 @@ export const TransaksiPinjamanAction = ({ action }) => {
     tableData = data.pinjaman.filter(p => p.status === 'Lunas');
   }
 
-  const handleCairkan = (pinjamanId, nominal) => {
-    updateStatusPinjaman(pinjamanId, 'Aktif');
-    addTransaksiPinjaman({ pinjamanId, jenis: 'Pencairan', nominal: Number(nominal) });
+  const handleCairkan = (pinjamanId, nominalAsli) => {
+    const finalNominal = nominalDisetujuiState[pinjamanId] ? parseRibuan(nominalDisetujuiState[pinjamanId]) : nominalAsli;
+    addTransaksiPinjaman({ 
+      pinjamanId, 
+      jenis: 'Pencairan', 
+      nominal: Number(nominalAsli), 
+      nominalDisetujui: Number(finalNominal) 
+    });
+    // Status pinjaman akan otomatis diupdate ke Aktif oleh backend saat jenis === 'Pencairan'
     setShowSuccess(true);
     setTimeout(() => setShowSuccess(false), 2000);
   };
@@ -51,7 +68,8 @@ export const TransaksiPinjamanAction = ({ action }) => {
               <tr>
                 <th>No</th>
                 <th>Nama Anggota</th>
-                <th>Nominal Pinjaman</th>
+                <th>Nominal Pengajuan</th>
+                {action === 'Pencairan' && <th>Nominal Disetujui</th>}
                 <th>Status</th>
                 <th>Tanggal Pengajuan</th>
                 {action === 'Pencairan' && <th style={{ textAlign: 'center' }}>Aksi</th>}
@@ -86,6 +104,21 @@ export const TransaksiPinjamanAction = ({ action }) => {
                     <td>{i + 1}</td>
                     <td><strong>{ang?.nama || '-'}</strong> <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>({ang?.sbu})</span></td>
                     <td style={{ fontWeight: 600 }}>{fmtIDR(p.nominalPinjaman)}</td>
+                    {action === 'Pencairan' && (
+                      <td>
+                        {p.status === 'Disetujui' ? (
+                          <input 
+                            type="text" 
+                            className="form-control" 
+                            style={{ margin: 0, minWidth: '130px', padding: '6px 12px' }}
+                            value={formatRibuan(nominalDisetujuiState[p.id] !== undefined ? nominalDisetujuiState[p.id] : p.nominalPinjaman)}
+                            onChange={(e) => setNominalDisetujuiState({ ...nominalDisetujuiState, [p.id]: parseRibuan(e.target.value) })}
+                          />
+                        ) : (
+                          <span style={{ fontWeight: 600, color: 'var(--primary)' }}>{fmtIDR(p.nominalPinjaman)}</span>
+                        )}
+                      </td>
+                    )}
                     <td>
                       <span style={{ padding: '3px 10px', borderRadius: '999px', fontSize: '0.8rem', fontWeight: 600, background: statusBg, color: statusColor }}>
                         {displayStatus}

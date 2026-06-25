@@ -1,22 +1,31 @@
 import React, { useState, useContext } from 'react';
 import { AppContext } from '../../context/AppContext';
 import { Save, CheckCircle } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+
+const formatRibuan = (val) => {
+  if (!val) return '';
+  const num = val.toString().replace(/[^0-9]/g, '');
+  return num.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+};
+const parseRibuan = (val) => {
+  if (!val) return '';
+  return val.toString().replace(/[^0-9]/g, '');
+};
+
+const INITIAL_FORM = {
+  nama: '',
+  alamat: '',
+  jenisKelamin: 'L',
+  tglMasuk: new Date().toISOString().split('T')[0],
+  sbu: 'MAB',
+  simpananPokok: 0,
+  simpananWajib: 0
+};
 
 export const RegistrasiAnggota = () => {
   const { addAnggota } = useContext(AppContext);
-  const navigate = useNavigate();
   
-  const [formData, setFormData] = useState({
-    nama: '',
-    alamat: '',
-    jenisKelamin: 'L',
-    tglMasuk: new Date().toISOString().split('T')[0],
-    sbu: 'MAB',
-    simpananPokok: 0,
-    simpananWajib: 0
-  });
-
+  const [formData, setFormData] = useState(INITIAL_FORM);
   const [showSuccess, setShowSuccess] = useState(false);
 
   const handleChange = (e) => {
@@ -26,11 +35,9 @@ export const RegistrasiAnggota = () => {
   const handleSubmit = (e) => {
     e.preventDefault();
     addAnggota(formData);
+    setFormData(INITIAL_FORM);
     setShowSuccess(true);
-    setTimeout(() => {
-      setShowSuccess(false);
-      navigate('/anggota/laporan/profil');
-    }, 2000);
+    setTimeout(() => setShowSuccess(false), 3000);
   };
 
   return (
@@ -40,7 +47,7 @@ export const RegistrasiAnggota = () => {
       {showSuccess && (
         <div className="alert-success">
           <CheckCircle size={20} />
-          <span>Anggota berhasil didaftarkan! Mengalihkan ke halaman profil...</span>
+          <span>Anggota berhasil didaftarkan! Formulir telah dikosongkan, Anda bisa mendaftarkan anggota baru.</span>
         </div>
       )}
 
@@ -115,23 +122,21 @@ export const RegistrasiAnggota = () => {
             <div className="form-group">
               <label className="form-label">Simpanan Pokok Awal</label>
               <input 
-                type="number" 
+                type="text" 
                 name="simpananPokok"
                 className="form-control" 
-                value={formData.simpananPokok}
-                onChange={handleChange}
-                min="0"
+                value={formatRibuan(formData.simpananPokok)}
+                onChange={(e) => setFormData({ ...formData, simpananPokok: parseRibuan(e.target.value) })}
               />
             </div>
             <div className="form-group">
               <label className="form-label">Simpanan Wajib Awal</label>
               <input 
-                type="number" 
+                type="text" 
                 name="simpananWajib"
                 className="form-control" 
-                value={formData.simpananWajib}
-                onChange={handleChange}
-                min="0"
+                value={formatRibuan(formData.simpananWajib)}
+                onChange={(e) => setFormData({ ...formData, simpananWajib: parseRibuan(e.target.value) })}
               />
             </div>
           </div>

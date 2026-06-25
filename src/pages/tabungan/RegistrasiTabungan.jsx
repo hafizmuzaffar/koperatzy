@@ -9,18 +9,24 @@ export const RegistrasiTabungan = () => {
   const [bank, setBank] = useState('Mandiri');
   const [showSuccess, setShowSuccess] = useState(false);
 
-  const activeAnggota = data.anggota.filter(a => a.status === 'Aktif');
-  const selectedAnggota = activeAnggota.find(a => a.id === anggotaId);
+  // Hanya anggota aktif yang BELUM memiliki rekening tabungan
+  const anggotaDenganRekening = new Set(data.tabungan.map(t => t.anggotaId));
+  const activeAnggota = data.anggota.filter(a => a.status === 'Aktif' && !anggotaDenganRekening.has(a.id));
+  const selectedAnggota = data.anggota.find(a => a.id === anggotaId);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!anggotaId || !noRekening) return;
-    addTabungan({ anggotaId, noRekening, bank });
-    setShowSuccess(true);
-    setAnggotaId('');
-    setNoRekening('');
-    setBank('Mandiri');
-    setTimeout(() => setShowSuccess(false), 2000);
+    try {
+      await addTabungan({ anggotaId, noRekening, bank });
+      setShowSuccess(true);
+      setAnggotaId('');
+      setNoRekening('');
+      setBank('Mandiri');
+      setTimeout(() => setShowSuccess(false), 2000);
+    } catch (error) {
+      alert(error.response?.data?.error || "Gagal membuat rekening. Pastikan nomor rekening belum digunakan.");
+    }
   };
 
   return (

@@ -270,8 +270,23 @@ app.post('/api/transaksi-pinjaman', async (req, res) => {
 });
 
 // START SERVER
-const PORT = 3001;
+// const PORT = 3001;
+// app.listen(PORT, '0.0.0.0', () => {
+//   console.log(`Backend server is running on http://localhost:${PORT}`);
+//   console.log(`Akses dari perangkat lain: http://192.168.0.199:${PORT}`);
+// });
+
+
+// Serve frontend build (hasil `vite build` ada di folder dist/ di root project)
+app.use(express.static(path.join(__dirname, '../dist')));
+
+// Fallback untuk React Router — taruh PALING AKHIR, setelah semua route /api di atas
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../dist/index.html'));
+});
+
+// START SERVER
+const PORT = process.env.PORT || 3001;
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Backend server is running on http://localhost:${PORT}`);
-  console.log(`Akses dari perangkat lain: http://192.168.0.199:${PORT}`);
+  console.log(`Backend server is running on port ${PORT}`);
 });
